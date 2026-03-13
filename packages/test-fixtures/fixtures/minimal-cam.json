@@ -1,0 +1,33 @@
+{
+  "schema_version": "cam-1.0",
+  "agent": {
+    "name": "Research Assistant",
+    "slug": "research-assistant",
+    "tags": [
+      "research",
+      "summarization"
+    ]
+  },
+  "models": {},
+  "instructions": {},
+  "tools": [],
+  "memory": {
+    "enabled": false,
+    "kind": "none"
+  },
+  "workflows": [],
+  "environment": {
+    "variables": [],
+    "platform": {
+      "os": [],
+      "arch": []
+    }
+  },
+  "extensions": {},
+  "source": {
+    "framework": "unknown"
+  },
+  "metadata": {
+    "created_by": "agentpack"
+  }
+}

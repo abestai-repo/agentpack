@@ -1,0 +1,25 @@
+{
+  "display": {
+    "title": "Research Assistant",
+    "summary": "Summarizes technical documents",
+    "tags": [
+      "research",
+      "summarization"
+    ]
+  },
+  "provenance": {
+    "created_by": "agentpack",
+    "created_by_version": "0.1.0",
+    "source_framework": "openclaw",
+    "source_adapter_version": "0.1.0"
+  },
+  "distribution": {
+    "public": false,
+    "remote_refs": [],
+    "listing_refs": []
+  },
+  "commercial": {
+    "entitlement_required": false,
+    "supported_access_models": []
+  }
+}

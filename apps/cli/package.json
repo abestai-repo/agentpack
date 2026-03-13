@@ -1,0 +1,14 @@
+{
+  "name": "@agentpack/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@agentpack/domain": "0.1.0",
+    "@agentpack/schemas": "0.1.0",
+    "commander": "^14.0.1"
+  },
+  "bin": {
+    "agentpack": "./dist/apps/cli/src/index.js"
+  }
+}

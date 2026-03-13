@@ -1,0 +1,28 @@
+{
+  "target_framework": "hermes",
+  "target_adapter_version": "0.1.0",
+  "mode": "safe",
+  "score": 0.92,
+  "status": "supported",
+  "category_scores": [
+    {
+      "category": "instructions",
+      "score": 1,
+      "status": "supported",
+      "weight": 0.22
+    }
+  ],
+  "items": [
+    {
+      "category": "instructions",
+      "path": "instructions.system_prompt",
+      "label": "system prompt",
+      "status": "supported",
+      "score": 1,
+      "weight": 1,
+      "critical": true,
+      "message": "System prompt maps directly."
+    }
+  ],
+  "manual_steps": []
+}
