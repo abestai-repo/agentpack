@@ -61,6 +61,20 @@ export const ADAPTER_CAPABILITIES = [
   "convert-target",
   "compatibility-report"
 ] as const;
+export const DETECTION_RULE_KINDS = [
+  "file_exists",
+  "directory_exists",
+  "file_contains",
+  "dependency_contains",
+  "convention_match"
+] as const;
+export const DETECTION_EVIDENCE_KINDS = [
+  "file",
+  "directory",
+  "dependency",
+  "content",
+  "convention"
+] as const;
 
 export type ToolKind = (typeof TOOL_KINDS)[number];
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
@@ -68,6 +82,9 @@ export type WorkflowKind = (typeof WORKFLOW_KINDS)[number];
 export type CompatibilityStatus = (typeof COMPATIBILITY_STATUSES)[number];
 export type CompatibilityCategory = (typeof COMPATIBILITY_CATEGORIES)[number];
 export type AccessModel = (typeof ACCESS_MODELS)[number];
+export type AdapterCapability = (typeof ADAPTER_CAPABILITIES)[number];
+export type DetectionRuleKind = (typeof DETECTION_RULE_KINDS)[number];
+export type DetectionEvidenceKind = (typeof DETECTION_EVIDENCE_KINDS)[number];
 
 export interface CamDocument {
   schema_version: typeof CAM_SCHEMA_VERSION;
@@ -178,6 +195,169 @@ export interface CompatibilityReport {
   }>;
   items: CompatibilityItem[];
   manual_steps: string[];
+}
+
+export interface AdapterMetadata {
+  id: string;
+  displayName: string;
+  framework: string;
+  adapterVersion: string;
+  supportedSourceVersions: string[];
+  supportedTargetVersions: string[];
+  detectionThreshold: number;
+  capabilities: AdapterCapability[];
+}
+
+export interface DetectionRule {
+  kind: DetectionRuleKind;
+  path?: string;
+  pattern?: string;
+  weight: number;
+  message: string;
+}
+
+export interface DetectionEvidence {
+  kind: DetectionEvidenceKind;
+  path?: string;
+  message: string;
+  weight: number;
+}
+
+export interface DetectInput {
+  sourcePath: string;
+  mode: "fast" | "deep";
+}
+
+export interface DetectResult {
+  adapterId: string;
+  framework: string;
+  displayName: string;
+  matched: boolean;
+  confidence: number;
+  evidence: DetectionEvidence[];
+  warnings: string[];
+  detectedVersion?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface DetectionCandidate extends DetectResult {
+  matchCategory: "strong" | "probable" | "weak";
+}
+
+export interface DetectionEngineResult {
+  selected: DetectionCandidate;
+  candidates: DetectionCandidate[];
+  ignoredDirectories: string[];
+}
+
+export interface AgentAdapter {
+  metadata: AdapterMetadata;
+  detectionRules: DetectionRule[];
+  detect(input: DetectInput): Promise<DetectResult>;
+  inspect?: (sourcePath: string) => Promise<InspectResult>;
+}
+
+export interface InspectPackageSummary {
+  name: string;
+  version: string;
+  displayName?: string;
+  description?: string;
+  tags: string[];
+}
+
+export interface InspectProvenanceSummary {
+  schemaVersion?: string;
+  camSchemaVersion?: string;
+  packageId?: string;
+  createdAt?: string;
+  createdBy?: string;
+  createdByVersion?: string;
+  sourceFramework?: string;
+  sourceAdapterVersion?: string;
+}
+
+export interface InspectPromptSummary {
+  count?: number;
+  sources: string[];
+  notes: string[];
+}
+
+export interface InspectModelSummary {
+  count?: number;
+  references: string[];
+  notes: string[];
+}
+
+export interface InspectCapabilitySummary {
+  count?: number;
+  references: string[];
+  notes: string[];
+}
+
+export interface InspectMemorySummary {
+  kind?: string;
+  references: string[];
+  notes: string[];
+}
+
+export interface InspectAdapterSummary {
+  adapterId: string;
+  adapterVersion?: string;
+  framework: string;
+  sourceVersion?: string;
+  capabilities: AdapterCapability[];
+  relevantPaths: string[];
+}
+
+export interface InspectRuntimeSurface {
+  cli?: string;
+  main?: string;
+  moduleType?: string;
+  nodeEngine?: string;
+  packageManager?: string;
+  exportsCount?: number;
+  scriptCount?: number;
+  notableScripts: string[];
+}
+
+export interface InspectPackageDetails {
+  license?: string;
+  homepage?: string;
+  repository?: string;
+}
+
+export interface InspectWorkspaceSummary {
+  topLevelDirectories: string[];
+  docsPresent: boolean;
+  testsPresent: boolean;
+  uiPresent: boolean;
+  appsPresent: boolean;
+  extensionsPresent: boolean;
+  skillsPresent: boolean;
+  packagesPresent: boolean;
+}
+
+export interface InspectResult {
+  targetKind: "live-agent" | "aegg-package";
+  adapterId: string;
+  framework: string;
+  displayName: string;
+  sourcePath: string;
+  sourceVersion?: string;
+  package: InspectPackageSummary;
+  provenance?: InspectProvenanceSummary;
+  prompts: InspectPromptSummary;
+  models: InspectModelSummary;
+  tools: InspectCapabilitySummary;
+  workflows: InspectCapabilitySummary;
+  memory: InspectMemorySummary;
+  adapter: InspectAdapterSummary;
+  runtime: InspectRuntimeSurface;
+  configPaths: string[];
+  packageDetails?: InspectPackageDetails;
+  workspace?: InspectWorkspaceSummary;
+  featureHints: string[];
+  warnings: string[];
 }
 
 export function createMinimalCam(overrides: Partial<CamDocument> = {}): CamDocument {

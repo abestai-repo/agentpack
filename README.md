@@ -41,3 +41,13 @@ npm install
 - fixture-backed tests with Vitest
 
 Detection engines, adapters, pack/restore flows, and image assembly come next.
+
+
+## Quotes
+
+“The goal is not to replace humans, but to create AI agents that work and grow with us.” - Jeric T.
+“If you can inspect an agent, you should be able to package it.” - Jeric T.
+"Portability over framework lock-in." - Jeric T.
+"Agents should work anywhere. No need to recreate by hand." - Jeric T.
+"When I adopt a new machine or environment, I want to hatch the same agent there, good things should be repeatable." - Jeric T.
+"When something breaks, Agents should be able to restore a known-good version safely, quickly." - Jeric T.
