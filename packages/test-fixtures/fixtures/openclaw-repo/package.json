@@ -1,0 +1,29 @@
+{
+  "name": "openclaw",
+  "version": "2026.3.13",
+  "description": "Multi-channel AI gateway with extensible messaging integrations",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "openclaw": "openclaw.mjs"
+  },
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./cli-entry": "./openclaw.mjs",
+    "./plugin-sdk": "./dist/plugin-sdk/index.js"
+  },
+  "scripts": {
+    "openclaw": "node scripts/run-node.mjs",
+    "dev": "node scripts/run-node.mjs --dev",
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "ui:build": "node scripts/ui-build.mjs",
+    "gateway:watch": "node scripts/watch.mjs",
+    "tui": "node scripts/run-node.mjs tui"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "pnpm@10.23.0"
+}

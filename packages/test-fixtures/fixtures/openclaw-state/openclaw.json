@@ -1,0 +1,19 @@
+{
+  "agents": {
+    "list": [
+      {
+        "id": "main",
+        "default": true
+      }
+    ]
+  },
+  "channels": {
+    "discord": {
+      "enabled": true
+    }
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-14T00:00:00.000Z"
+  }
+}
+

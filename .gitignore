@@ -6,6 +6,4 @@ coverage/
 .turbo/
 /.npm-cache
 /.npm-install-smoke
-/packages/test-fixtures
-/tests
 /tests
