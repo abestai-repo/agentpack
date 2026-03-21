@@ -1,8 +1,32 @@
-# agentpack 1
+# 🐣 AgentPack — Backup, clone, and migrate AI agents of any kind like OpenClaw, Hermes & more
 
-AgentPack is a local-first toolkit for detecting, inspecting, packaging, restoring, and converting AI agents through a canonical intermediate model.
+<p align="center">
+    <img width="500" height="113" alt="AgentPack" src="https://github.com/user-attachments/assets/a2e6ab50-072c-4fda-acb5-ccf8a3197df1" />
+</p>
 
-This repository now uses a standard install-first developer flow so cloning from GitHub feels like a normal application checkout rather than a zero-dependency script drop.
+<p align="center">
+  Migrate. Snapshot. Restore. Clone AI agent of any kind, everywhere.
+</p>
+
+<p align="center"> 
+  <img src="https://img.shields.io/badge/RELEASE-V2026.3.21-blue" alt="Release" />
+  <a target="_blank" href="https://abestai.com/discord"><img src="https://img.shields.io/badge/DISCORD-12K%20ONLINE-5865F2?logo=discord&logoColor=white&style=flat-square" alt="Discord" /></a>
+  <img src="https://img.shields.io/badge/LICENSE-APACHE2.0-blue" alt="License" />
+  <a target="_blank"href="https://instagram.com/jericbook"><img src="https://img.shields.io/badge/BUILT%20BY-@jerictan-blueviolet?style=flat-square" alt="Built By" /></a>
+</p>
+
+<p align="center">
+  
+
+</p>
+
+**AgentPack** is a *AI agent packager*. Backup, clone, and migrate AI agents with "DNA" between OpenClaw, Hermes, and AI agents of any kind. 
+
+It is a local-first toolkit for detecting, inspecting, packaging, restoring, and converting AI agents through a canonical intermediate model.
+
+[Website](#) · [Docs](#) · [Getting Started](#) · [Updating](#) · [Showcase](#) · [FAQ](#) · [Onboarding](#) · [Discord](https://abestai.com/discord)
+
+Preferred guide: run `agentpack --help` in your terminal. AgentPack guides you step by step through setting packing and hatching your AGENT Eggs (package, image). It works on **macOS, Linux, and Windows**. Works with npm, pnpm, and AI Agents of any kind. New? Start here: [Getting started](#)
 
 ## Quick start
 
