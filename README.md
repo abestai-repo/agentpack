@@ -33,9 +33,6 @@ Preferred guide: run `agentpack --help` in your terminal. AgentPack guides you s
 ```bash
 pnpm install
 pnpm build
-pnpm schemas
-pnpm validate:cam
-pnpm test
 ```
 
 `npm install` also works because the repo uses standard workspaces and local scripts:
@@ -43,8 +40,6 @@ pnpm test
 ```bash
 npm install
 npm run build
-npm run schemas
-npm run test
 ```
 
 
@@ -63,17 +58,23 @@ node dist/apps/cli/src/index.js inspect C:\AGENT1\openclaw-agent-standard.aegg
 node dist/apps/cli/src/index.js detect C:\AGENT1\.openclaw
 ```
 
-
 Everything useful for the MVP is above.
+
+## Roadmap and next updates
+
+- OpenClaw cron job migrations
+- Hermes migration, clone, backup.
+- OpenClaw to Hermes migration
+- Hermes to OpenClaw migration
 
 ## Quotes
 
-“The goal is not to replace humans, but to create AI agents that work and grow with us.” - Jeric T.
-“If you can inspect an agent, you should be able to package it.” - Jeric T.
-"Portability over framework lock-in." - Jeric T.
-"Agents should work anywhere. No need to recreate by hand." - Jeric T.
-"When I adopt a new machine or environment, I want to hatch the same agent there, good things should be repeatable." - Jeric T.
-"When something breaks, Agents should be able to restore a known-good version safely, quickly." - Jeric T.
+- “The goal is not to replace humans, but to create AI agents that work and grow with us.” - Jeric T.
+- “If you can inspect an agent, you should be able to package it.” - Jeric T.
+- "Portability over framework lock-in." - Jeric T.
+- "Agents should work anywhere. No need to recreate by hand." - Jeric T.
+- "When I adopt a new machine or environment, I want to hatch the same agent there, good things should be repeatable." - Jeric T.
+- "When something breaks, Agents should be able to restore a known-good version safely, quickly." - Jeric T.
 
 
 
