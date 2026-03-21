@@ -19,6 +19,7 @@ export interface OpenClawConfigAnalysis {
   hasMemorySignal: boolean;
   hasPluginsSignal: boolean;
   hasChannelsSignal: boolean;
+  lastTouchedVersion?: string;
 }
 
 export interface OpenClawStateProbe {
@@ -36,6 +37,7 @@ export interface OpenClawStateProbe {
   credentialsDir?: string;
   sessionsRoots: string[];
   analysis?: OpenClawConfigAnalysis;
+  lastTouchedVersion?: string;
   warnings: string[];
   evidence: DetectionEvidence[];
 }
@@ -73,21 +75,7 @@ function stripComments(text: string) {
     .replace(/^\s*\/\/.*$/gm, "");
 }
 
-function parseQuotedAgentIds(configText: string) {
-  const ids = new Set<string>();
-  const patterns = [/"id"\s*:\s*"([^"]+)"/g, /'id'\s*:\s*'([^']+)'/g];
-
-  for (const pattern of patterns) {
-    for (const match of configText.matchAll(pattern)) {
-      const id = match[1]?.trim().toLowerCase();
-      if (id) {
-        ids.add(id);
-      }
-    }
-  }
-
-  return [...ids];
-}
+// (Removed unconstrained parseQuotedAgentIds based on user feedback)
 
 function hasSignal(configText: string, signal: string) {
   const escaped = signal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -158,34 +146,49 @@ function tryParseJson(text: string) {
 
 export function analyzeConfigText(configText: string): OpenClawConfigAnalysis {
   const cleaned = stripComments(configText);
-  const explicitAgentIds = parseQuotedAgentIds(cleaned);
-  const workspaceCandidates = collectWorkspaceCandidates(tryParseJson(cleaned));
+  const parsed = tryParseJson(cleaned) as any;
+  
+  let explicitAgentIds: string[] = [];
+  if (parsed?.agents?.list && Array.isArray(parsed.agents.list)) {
+      explicitAgentIds = typeof parsed.agents.list[0] === 'string' ? parsed.agents.list : parsed.agents.list.map((a: any) => a.id).filter(Boolean);
+  } else if (parsed?.agent?.id && typeof parsed.agent.id === 'string') {
+      explicitAgentIds = [parsed.agent.id];
+  }
+  
+  const deduplicatedAgentIds = [...new Set(explicitAgentIds)];
+  
+  const workspaceCandidates = collectWorkspaceCandidates(parsed);
   const hasModelsSignal = hasSignal(cleaned, "models");
   const hasToolsSignal = hasSignal(cleaned, "tools");
   const hasMemorySignal = hasSignal(cleaned, "memory");
   const hasPluginsSignal = hasSignal(cleaned, "plugins");
   const hasChannelsSignal = hasSignal(cleaned, "channels");
+  const hasBindingsSignal = hasSignal(cleaned, "bindings") || (parsed?.bindings && parsed.bindings.length > 0);
+  const hasWizardSignal = hasSignal(cleaned, "wizard") || !!parsed?.wizard?.lastRunAt;
+  const lastTouchedVersion = parsed?.meta?.lastTouchedVersion;
+  
   const customConfig =
-    explicitAgentIds.length > 0 ||
-    hasSignal(cleaned, "bindings") ||
+    deduplicatedAgentIds.length > 0 ||
+    hasBindingsSignal ||
     hasChannelsSignal ||
     hasModelsSignal ||
     hasSignal(cleaned, "skills") ||
     hasPluginsSignal ||
     hasToolsSignal ||
     hasMemorySignal ||
-    hasSignal(cleaned, "wizard");
+    hasWizardSignal;
 
   return {
     customConfig,
-    explicitAgentIds,
-    defaultImplicitAgent: explicitAgentIds.length === 0,
+    explicitAgentIds: deduplicatedAgentIds,
+    defaultImplicitAgent: deduplicatedAgentIds.length === 0,
     workspaceCandidates,
     hasModelsSignal,
     hasToolsSignal,
     hasMemorySignal,
     hasPluginsSignal,
-    hasChannelsSignal
+    hasChannelsSignal,
+    lastTouchedVersion
   };
 }
 
@@ -315,6 +318,7 @@ export async function resolveOpenClawStateProbe(): Promise<OpenClawStateProbe> {
       credentialsDir: (await pathExists(credentialsDir)) ? credentialsDir : undefined,
       sessionsRoots,
       analysis,
+      lastTouchedVersion: analysis.lastTouchedVersion,
       warnings,
       evidence
     };

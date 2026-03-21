@@ -61,6 +61,8 @@ export const ADAPTER_CAPABILITIES = [
   "convert-target",
   "compatibility-report"
 ] as const;
+export const PACK_MODES = ["minimal", "standard", "full"] as const;
+export const PACKAGE_TYPES = ["agent", "bundle"] as const;
 export const DETECTION_RULE_KINDS = [
   "file_exists",
   "directory_exists",
@@ -83,8 +85,10 @@ export type CompatibilityStatus = (typeof COMPATIBILITY_STATUSES)[number];
 export type CompatibilityCategory = (typeof COMPATIBILITY_CATEGORIES)[number];
 export type AccessModel = (typeof ACCESS_MODELS)[number];
 export type AdapterCapability = (typeof ADAPTER_CAPABILITIES)[number];
+export type PackMode = (typeof PACK_MODES)[number];
 export type DetectionRuleKind = (typeof DETECTION_RULE_KINDS)[number];
 export type DetectionEvidenceKind = (typeof DETECTION_EVIDENCE_KINDS)[number];
+export type PackageType = (typeof PACKAGE_TYPES)[number];
 
 export interface CamDocument {
   schema_version: typeof CAM_SCHEMA_VERSION;
@@ -134,10 +138,12 @@ export interface CamDocument {
 export interface AeggManifest {
   schema_version: typeof AEGG_SCHEMA_VERSION;
   cam_schema_version: typeof CAM_SCHEMA_VERSION;
+  package_type?: PackageType;
   package_id: string;
   name: string;
   version: string;
   created_at: string;
+  agents?: Array<{ agent_id: string; path: string }>;
   entrypoints: {
     cam: string;
     metadata: string;
@@ -167,6 +173,28 @@ export interface AeggMetadata {
     entitlement_required: boolean;
     supported_access_models: AccessModel[];
   };
+}
+
+export interface AeggPackageCompatibilityTarget {
+  framework: string;
+  status: Exclude<CompatibilityStatus, "not_applicable">;
+  score: number;
+}
+
+export interface AeggPackageCompatibilityDocument {
+  generated_at: string;
+  source_framework: string;
+  targets: AeggPackageCompatibilityTarget[];
+}
+
+export interface AeggChecksumEntry {
+  path: string;
+  digest: string;
+}
+
+export interface AeggChecksums {
+  algorithm: "sha256";
+  files: AeggChecksumEntry[];
 }
 
 export interface CompatibilityItem {
@@ -250,11 +278,79 @@ export interface DetectionEngineResult {
   ignoredDirectories: string[];
 }
 
+export interface ExtractInput {
+  sourcePath: string;
+  mode?: PackMode;
+  agentId?: string;
+}
+
 export interface AgentAdapter {
   metadata: AdapterMetadata;
   detectionRules: DetectionRule[];
   detect(input: DetectInput): Promise<DetectResult>;
   inspect?: (sourcePath: string) => Promise<InspectResult>;
+  extract?: (input: ExtractInput) => Promise<AgentExtractResult>;
+  restore?: (input: RestoreInput) => Promise<RestoreResult>;
+}
+
+export interface AgentExtractResult {
+  cam: CamDocument;
+  metadata: AeggMetadata;
+  compatibility: AeggPackageCompatibilityDocument;
+  packageName: string;
+  version: string;
+  displayName: string;
+  warnings: string[];
+  assets?: ExtractedAsset[];
+}
+
+export interface ExtractedAsset {
+  archivePath: string;
+  kind: "file" | "directory" | "virtual";
+  sourcePath?: string;
+  content?: string;
+}
+
+export interface PackInput {
+  sourcePath: string;
+  outputPath?: string;
+  message?: string;
+  tags?: string[];
+  mode?: PackMode;
+  bundle?: boolean;
+  agentId?: string;
+}
+
+export interface PackResult {
+  outputPath: string;
+  manifest: AeggManifest;
+  metadata: AeggMetadata;
+  compatibility: AeggPackageCompatibilityDocument;
+  checksums: AeggChecksums;
+  warnings: string[];
+}
+
+export interface RestoreInput {
+  sourcePackage: string;
+  targetPath: string;
+  cam: CamDocument;
+  metadata: AeggMetadata;
+  compatibility: AeggPackageCompatibilityDocument;
+  assetsDirectory: string;
+  options?: {
+    dryRun?: boolean;
+    backup?: boolean;
+    force?: boolean;
+    confirmStepByStep?: boolean;
+    logUndo?: boolean;
+  };
+}
+
+export interface RestoreResult {
+  targetPath: string;
+  filesWritten: string[];
+  filesBackedUp?: string[];
+  warnings: string[];
 }
 
 export interface InspectPackageSummary {
@@ -268,6 +364,7 @@ export interface InspectPackageSummary {
 export interface InspectProvenanceSummary {
   schemaVersion?: string;
   camSchemaVersion?: string;
+  packageType?: string;
   packageId?: string;
   createdAt?: string;
   createdBy?: string;
@@ -341,6 +438,7 @@ export interface InspectResult {
   targetKind: "live-agent" | "aegg-package";
   adapterId: string;
   framework: string;
+  frameworkPath?: string;
   displayName: string;
   sourcePath: string;
   sourceVersion?: string;
@@ -358,6 +456,7 @@ export interface InspectResult {
   workspace?: InspectWorkspaceSummary;
   featureHints: string[];
   warnings: string[];
+  details?: Record<string, unknown>;
 }
 
 export function createMinimalCam(overrides: Partial<CamDocument> = {}): CamDocument {
@@ -402,6 +501,7 @@ export function createMinimalAeggManifest(
   return {
     schema_version: AEGG_SCHEMA_VERSION,
     cam_schema_version: CAM_SCHEMA_VERSION,
+    package_type: "agent",
     package_id: "pkg_example",
     name: "unnamed-agent",
     version: "0.1.0",
@@ -461,4 +561,37 @@ export function createMinimalCompatibilityReport(
     manual_steps: [],
     ...overrides
   };
+}
+
+export function createMinimalPackageCompatibilityDocument(
+  overrides: Partial<AeggPackageCompatibilityDocument> = {}
+): AeggPackageCompatibilityDocument {
+  return {
+    generated_at: "2026-03-14T00:00:00Z",
+    source_framework: "unknown",
+    targets: [],
+    ...overrides
+  };
+}
+
+export function createMinimalChecksums(
+  overrides: Partial<AeggChecksums> = {}
+): AeggChecksums {
+  return {
+    algorithm: "sha256",
+    files: [],
+    ...overrides
+  };
+}
+
+export interface VerifyResult {
+  valid: boolean;
+  packagePath: string;
+  manifest?: AeggManifest;
+  totalFiles: number;
+  verifiedFiles: number;
+  failedFiles: string[];
+  missingFiles: string[];
+  extraFiles: string[];
+  warnings: string[];
 }

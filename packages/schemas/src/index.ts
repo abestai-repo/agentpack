@@ -7,10 +7,13 @@ import {
   COMPATIBILITY_CATEGORIES,
   COMPATIBILITY_STATUSES,
   MEMORY_KINDS,
+  PACKAGE_TYPES,
   TOOL_KINDS,
   WORKFLOW_KINDS,
   type AeggManifest,
+  type AeggChecksums,
   type AeggMetadata,
+  type AeggPackageCompatibilityDocument,
   type CamDocument,
   type CompatibilityReport
 } from "../../domain/src/index.js";
@@ -78,10 +81,15 @@ export const camDocumentSchema = z.object({
 export const aeggManifestSchema = z.object({
   schema_version: z.literal(AEGG_SCHEMA_VERSION),
   cam_schema_version: z.literal(CAM_SCHEMA_VERSION),
+  package_type: z.enum(PACKAGE_TYPES).optional(),
   package_id: nonEmptyString,
   name: nonEmptyString,
   version: nonEmptyString,
   created_at: nonEmptyString,
+  agents: z.array(z.object({
+    agent_id: nonEmptyString,
+    path: nonEmptyString
+  }).strict()).optional(),
   entrypoints: z.object({
     cam: nonEmptyString,
     metadata: nonEmptyString,
@@ -141,6 +149,14 @@ const packageCompatibilitySchema = z.object({
     score: z.number().min(0).max(1)
   }).strict())
 }).strict();
+
+export const aeggChecksumsSchema = z.object({
+  algorithm: z.literal("sha256"),
+  files: z.array(z.object({
+    path: nonEmptyString,
+    digest: nonEmptyString
+  }).strict())
+}).strict() satisfies z.ZodType<AeggChecksums>;
 
 export const compatibilityReportSchema = z.object({
   target_framework: nonEmptyString,
@@ -202,8 +218,12 @@ export function validateAeggMetadata(payload: unknown): ValidationResult<AeggMet
 
 export function validateAeggCompatibilityDocument(
   payload: unknown
-): ValidationResult<CompatibilityReport | z.infer<typeof packageCompatibilitySchema>> {
+): ValidationResult<CompatibilityReport | AeggPackageCompatibilityDocument> {
   return validateWithSchema(compatibilityDocumentSchema, payload);
+}
+
+export function validateAeggChecksums(payload: unknown): ValidationResult<AeggChecksums> {
+  return validateWithSchema(aeggChecksumsSchema, payload);
 }
 
 export function inferValidationKind(filePath: string, payload: unknown) {
@@ -222,6 +242,9 @@ export function inferValidationKind(filePath: string, payload: unknown) {
   if (normalizedPath.endsWith("compatibility.json")) {
     return "compatibility";
   }
+  if (normalizedPath.endsWith("checksums.json")) {
+    return "checksums";
+  }
   if (value?.schema_version === CAM_SCHEMA_VERSION) {
     return "cam";
   }
@@ -230,6 +253,9 @@ export function inferValidationKind(filePath: string, payload: unknown) {
   }
   if (value && "display" in value && "provenance" in value) {
     return "metadata";
+  }
+  if (value && value.algorithm === "sha256" && "files" in value) {
+    return "checksums";
   }
 
   return "compatibility";

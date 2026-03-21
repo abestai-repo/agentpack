@@ -1,9 +1,35 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { exec as execCallback } from "node:child_process";
+import { promisify } from "node:util";
+
+const exec = promisify(execCallback);
 
 import type { InspectResult } from "../../../domain/src/index.js";
 import { openClawAdapterMetadata } from "./definitions.js";
-import { pathExists, resolveOpenClawStateProbe } from "./state.js";
+import { resolveOpenClawInput } from "./resolve.js";
+import { pathExists } from "./state.js";
+
+async function getOpenclawGlobalPath(): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec("which openclaw");
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getOpenclawGlobalVersion(): Promise<string | undefined> {
+  try {
+    const { stdout } = await exec("openclaw --version");
+    const match = stdout.match(/OpenClaw\s+([0-9]+\.[0-9]+\.[0-9]+)/i);
+    if (match && match[1]) {
+      return match[1];
+    }
+  } catch {
+    return undefined;
+  }
+}
 
 interface OpenClawPackageJson {
   name?: string;
@@ -140,8 +166,9 @@ function buildFeatureHints(args: {
   directories: string[];
   packageJson: OpenClawPackageJson;
   workspaceSurfaces: WorkspaceSurfaceSummary[];
-  stateProbeWarnings: string[];
+  resolvedInputKind: string;
   stateResolved: boolean;
+  hasConfigSignal: boolean;
 }) {
   const hints: string[] = [];
   const exportsCount = Object.keys(args.packageJson.exports ?? {}).length;
@@ -184,12 +211,13 @@ function buildFeatureHints(args: {
   }
 
   if (args.stateResolved) {
+    hints.push(`Flexible input normalization resolved this target as ${args.resolvedInputKind}.`);
     hints.push("Minimal mode should exclude memory, secrets, and session transcripts while preserving core workspace DNA.");
     hints.push("Standard mode should include workspace memory and richer non-secret state while excluding credentials and inline secrets.");
-    hints.push("Full mode should reuse OpenClaw's native backup engine for the most faithful managed-state capture.");
+    hints.push("Full mode should include credentials, sessions, and full workspace/state payloads.");
   }
 
-  if (args.stateProbeWarnings.length === 0 && args.stateResolved) {
+  if (args.hasConfigSignal && args.stateResolved) {
     hints.push("This inspect result is close enough to drive an honest backup plan, not just framework detection.");
   }
 
@@ -197,46 +225,74 @@ function buildFeatureHints(args: {
 }
 
 export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult> {
-  const packageJsonPath = path.join(sourcePath, "package.json");
-  const packageJson = JSON.parse(
-    await fs.readFile(packageJsonPath, "utf8")
-  ) as OpenClawPackageJson;
-  const { topLevelDirectories, topLevelFiles } = await listTopLevelSurface(sourcePath);
+  const resolved = await resolveOpenClawInput(sourcePath);
+  const codeRoot = resolved.codeFolder ?? sourcePath;
+  const packageJsonPath = path.join(codeRoot, "package.json");
+  const packageJson = await pathExists(packageJsonPath)
+    ? (JSON.parse(await fs.readFile(packageJsonPath, "utf8")) as OpenClawPackageJson)
+    : ({} as OpenClawPackageJson);
+  
+  let detectedVersion = await getOpenclawGlobalVersion();
+  if (!detectedVersion && packageJson.version) {
+    detectedVersion = packageJson.version;
+  }
+  if (!detectedVersion && resolved.lastTouchedVersion) {
+    detectedVersion = resolved.lastTouchedVersion;
+  }
+  
+  const frameworkPath = await getOpenclawGlobalPath();
+
+  const { topLevelDirectories, topLevelFiles } = resolved.codeFolder
+    ? await listTopLevelSurface(resolved.codeFolder)
+    : { topLevelDirectories: [] as string[], topLevelFiles: [] as string[] };
   const scripts = packageJson.scripts ?? {};
   const notableScripts = NOTABLE_SCRIPT_KEYS.filter((scriptName) => scripts[scriptName]);
   const warnings: string[] = [];
-  const stateProbe = await resolveOpenClawStateProbe();
   const workspaceSurfaces = await Promise.all(
-    stateProbe.workspaceDirs.map((workspaceDir) => inspectWorkspaceSurface(workspaceDir, sourcePath))
+    resolved.workspaceDirs.map((workspaceDir) => inspectWorkspaceSurface(workspaceDir, sourcePath))
   );
 
-  if (!packageJson.bin?.openclaw) {
+  if (resolved.codeFolder && !packageJson.bin?.openclaw) {
     warnings.push("OpenClaw CLI entrypoint was not declared in package.json bin.");
   }
 
-  if (!topLevelDirectories.includes("src")) {
+  if (resolved.codeFolder && !topLevelDirectories.includes("src")) {
     warnings.push("Source tree src/ was not present at the repo root.");
   }
 
-  warnings.push(...stateProbe.warnings);
+  warnings.push(...resolved.warnings);
 
   const repoConfigPaths = [
-    "package.json",
-    packageJson.bin?.openclaw,
-    packageJson.main,
-    topLevelFiles.includes("AGENTS.md") ? "AGENTS.md" : undefined,
-    topLevelDirectories.includes("skills") ? "skills/" : undefined,
-    topLevelDirectories.includes("extensions") ? "extensions/" : undefined,
-    topLevelDirectories.includes("src") ? "src/" : undefined,
-    topLevelDirectories.includes("docs") ? "docs/" : undefined
+    resolved.codeFolder ? relativeTo(sourcePath, packageJsonPath) : undefined,
+    resolved.codeFolder && packageJson.bin?.openclaw
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, packageJson.bin.openclaw))
+      : undefined,
+    resolved.codeFolder && packageJson.main
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, packageJson.main))
+      : undefined,
+    resolved.codeFolder && topLevelFiles.includes("AGENTS.md")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "AGENTS.md"))
+      : undefined,
+    resolved.codeFolder && topLevelDirectories.includes("skills")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "skills"))
+      : undefined,
+    resolved.codeFolder && topLevelDirectories.includes("extensions")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "extensions"))
+      : undefined,
+    resolved.codeFolder && topLevelDirectories.includes("src")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "src"))
+      : undefined,
+    resolved.codeFolder && topLevelDirectories.includes("docs")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "docs"))
+      : undefined
   ];
 
   const stateConfigPaths = [
-    stateProbe.configPath ? relativeTo(sourcePath, stateProbe.configPath) : undefined,
-    stateProbe.stateDir ? relativeTo(sourcePath, stateProbe.stateDir) : undefined,
-    stateProbe.managedSkillsDir ? relativeTo(sourcePath, stateProbe.managedSkillsDir) : undefined,
-    stateProbe.extensionsDir ? relativeTo(sourcePath, stateProbe.extensionsDir) : undefined,
-    stateProbe.credentialsDir ? relativeTo(sourcePath, stateProbe.credentialsDir) : undefined,
+    resolved.configPath ? relativeTo(sourcePath, resolved.configPath) : undefined,
+    resolved.stateDir ? relativeTo(sourcePath, resolved.stateDir) : undefined,
+    resolved.managedSkillsDir ? relativeTo(sourcePath, resolved.managedSkillsDir) : undefined,
+    resolved.extensionsDir ? relativeTo(sourcePath, resolved.extensionsDir) : undefined,
+    resolved.credentialsDir ? relativeTo(sourcePath, resolved.credentialsDir) : undefined,
     ...workspaceSurfaces.map((surface) => surface.workspaceDir)
   ];
 
@@ -244,19 +300,27 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
     surface.dnaFiles.filter((filePath) => !filePath.endsWith("TOOLS.md"))
   );
   const toolRefs = [
-    ...(topLevelDirectories.includes("extensions") ? ["extensions/"] : []),
-    ...(notableScripts.length > 0 ? ["package.json:scripts"] : []),
-    ...(stateProbe.extensionsDir ? [relativeTo(sourcePath, stateProbe.extensionsDir)] : []),
-    ...(stateProbe.managedSkillsDir ? [relativeTo(sourcePath, stateProbe.managedSkillsDir)] : []),
+    ...(resolved.codeFolder && topLevelDirectories.includes("extensions")
+      ? [relativeTo(sourcePath, path.join(resolved.codeFolder, "extensions"))]
+      : []),
+    ...(notableScripts.length > 0 && resolved.codeFolder ? ["package.json:scripts"] : []),
+    ...(resolved.extensionsDir ? [relativeTo(sourcePath, resolved.extensionsDir)] : []),
+    ...(resolved.managedSkillsDir ? [relativeTo(sourcePath, resolved.managedSkillsDir)] : []),
     ...workspaceSurfaces.flatMap((surface) => surface.skillsPaths),
     ...workspaceSurfaces.flatMap((surface) =>
       surface.dnaFiles.filter((filePath) => filePath.endsWith("TOOLS.md"))
     )
   ];
   const workflowRefs = [
-    ...(topLevelDirectories.includes("src") ? ["src/"] : []),
-    ...(topLevelDirectories.includes("apps") ? ["apps/"] : []),
-    ...(stateProbe.analysis?.hasChannelsSignal ? [relativeTo(sourcePath, stateProbe.configPath ?? "")] : []),
+    ...(resolved.codeFolder && topLevelDirectories.includes("src")
+      ? [relativeTo(sourcePath, path.join(resolved.codeFolder, "src"))]
+      : []),
+    ...(resolved.codeFolder && topLevelDirectories.includes("apps")
+      ? [relativeTo(sourcePath, path.join(resolved.codeFolder, "apps"))]
+      : []),
+    ...(resolved.analysis?.hasChannelsSignal && resolved.configPath
+      ? [relativeTo(sourcePath, resolved.configPath)]
+      : []),
     ...workspaceSurfaces.flatMap((surface) =>
       surface.dnaFiles.filter(
         (filePath) =>
@@ -267,29 +331,36 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
     )
   ];
   const memoryRefs = [
-    ...(stateProbe.analysis?.hasMemorySignal && stateProbe.configPath
-      ? [relativeTo(sourcePath, stateProbe.configPath)]
+    ...(resolved.analysis?.hasMemorySignal && resolved.configPath
+      ? [relativeTo(sourcePath, resolved.configPath)]
       : []),
     ...workspaceSurfaces.flatMap((surface) => surface.memoryPaths)
   ];
   const promptSources = uniqueSorted([
-    topLevelDirectories.includes("docs") ? "docs/" : undefined,
-    topLevelFiles.includes("AGENTS.md") ? "AGENTS.md" : undefined,
+    resolved.codeFolder && topLevelDirectories.includes("docs")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "docs"))
+      : undefined,
+    resolved.codeFolder && topLevelFiles.includes("AGENTS.md")
+      ? relativeTo(sourcePath, path.join(resolved.codeFolder, "AGENTS.md"))
+      : undefined,
     ...dnaPromptSources
   ]);
   const configPaths = uniqueSorted([...repoConfigPaths, ...stateConfigPaths]);
+  const frameworkDisplayName = "OpenClaw";
+  const packageName = packageJson.name ?? "openclaw";
 
   return {
     targetKind: "live-agent",
     adapterId: "openclaw",
     framework: "openclaw",
-    displayName: "OpenClaw",
+    frameworkPath,
+    displayName: frameworkDisplayName,
     sourcePath,
-    sourceVersion: packageJson.version,
+    sourceVersion: detectedVersion,
     package: {
-      name: packageJson.name ?? "openclaw",
+      name: packageName,
       version: packageJson.version ?? "unknown",
-      displayName: packageJson.name ?? "openclaw",
+      displayName: packageName,
       description: packageJson.description,
       tags: []
     },
@@ -297,19 +368,19 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
       count: promptSources.length || undefined,
       sources: promptSources,
       notes: [
-        stateProbe.configFound
+        resolved.workspaceDirs.length > 0
           ? "Inspection resolved OpenClaw-managed workspaces and collected core workspace DNA files for backup planning."
-          : "Only repository-local prompt surfaces were available because no OpenClaw state directory was resolved."
+          : "Only repository-local prompt surfaces were available because no OpenClaw workspace could be resolved."
       ]
     },
     models: {
       references: uniqueSorted([
-        stateProbe.analysis?.hasModelsSignal && stateProbe.configPath
-          ? relativeTo(sourcePath, stateProbe.configPath)
+        resolved.analysis?.hasModelsSignal && resolved.configPath
+          ? relativeTo(sourcePath, resolved.configPath)
           : undefined
       ]),
       notes: [
-        stateProbe.analysis?.hasModelsSignal
+        resolved.analysis?.hasModelsSignal
           ? "Model or provider configuration signals were found in the active OpenClaw config."
           : "No model configuration signal was identified in the active OpenClaw config."
       ]
@@ -318,7 +389,7 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
       count: toolRefs.length || undefined,
       references: uniqueSorted(toolRefs),
       notes: [
-        stateProbe.analysis?.hasPluginsSignal
+        resolved.analysis?.hasPluginsSignal
           ? "Plugin install metadata appears in the active OpenClaw config and should travel with non-secret modes."
           : "No explicit plugin install metadata signal was identified in the active config."
       ]
@@ -327,7 +398,7 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
       count: workflowRefs.length || undefined,
       references: uniqueSorted(workflowRefs),
       notes: [
-        stateProbe.analysis?.hasChannelsSignal
+        resolved.analysis?.hasChannelsSignal
           ? "Channel/runtime workflow signals were detected in the active OpenClaw config."
           : "Workflow discovery is inferred from bootstrap-style files and runtime layout, not executed state."
       ]
@@ -379,9 +450,21 @@ export async function inspectOpenClaw(sourcePath: string): Promise<InspectResult
       directories: topLevelDirectories,
       packageJson,
       workspaceSurfaces,
-      stateProbeWarnings: stateProbe.warnings,
-      stateResolved: stateProbe.configFound
+      resolvedInputKind: resolved.inputKind,
+      stateResolved: Boolean(resolved.stateDir),
+      hasConfigSignal: Boolean(resolved.configPath)
     }),
-    warnings: uniqueSorted(warnings)
+    warnings: uniqueSorted([
+      ...warnings,
+      ...(resolved.inputKind === "unknown"
+        ? ["Input path did not strongly resolve to an OpenClaw code, state, or workspace root."]
+        : [])
+    ]),
+    details: {
+      agentCount: resolved.agentIds.length || undefined,
+      agentIds: resolved.agentIds,
+      detectedRootKind: resolved.detectedRootKind,
+      customConfig: resolved.customConfig
+    }
   };
 }
